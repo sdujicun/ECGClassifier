@@ -215,9 +215,25 @@ def hasSimilar(shapelet,shapelet_not_similar):
     for i in range(len(shapelet_not_similar)):
         candidate=shapelet_not_similar[i]
         if (candidate.startPos >= shapelet.startPos) and (candidate.startPos < shapelet.startPos + shapelet.length):
-            return True
+            # return True
+            #candidates is subsequence of shapelet
+            if(candidate.startPos+candidate.length)<=(shapelet.startPos + shapelet.length):
+                return True
+            #the some subsequence is big than half of any one
+            similar_length=shapelet.startPos + shapelet.length-candidate.startPos+1
+            if(similar_length>shapelet.length/2) or (similar_length>candidate.length/2):
+                return True
+
         if (shapelet.startPos >= candidate.startPos) and (shapelet.startPos < candidate.startPos + candidate.length):
-            return True
+            #return True
+            # shapelet is  subsequence of candidates
+            if (shapelet.startPos + shapelet.length) <= (candidate.startPos + candidate.length):
+                return True
+            # the some subsequence is big than half of any one
+            similar_length = candidate.startPos + candidate.length - shapelet.startPos + 1
+            if (similar_length > shapelet.length / 2) or (similar_length > candidate.length / 2):
+                return True
+
         if (len(shapelet.values)==len(candidate.values)):
             if ((shapelet.values==candidate.values).all()):
                 return True
