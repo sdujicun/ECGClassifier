@@ -15,7 +15,7 @@ from steps.peak_detection import peak_detection,HRV_detection
 from sklearn.model_selection import train_test_split
 
 
-from shapelet.shapelet_transform import Shapelet,findBestKShapelet,findBestKShapeletWithEarlyPrune,transform
+from shapelet.shapelet_transform import Shapelet,findBestKShapelet,findBestKShapeletWithSplitPoints,transform
 
 pwd = os.getcwd()
 father_path=os.path.abspath(os.path.dirname(pwd)+os.path.sep+".")
@@ -32,7 +32,7 @@ def classification():
     X_train, X_test, arousal_train, arousal_test, valence_train, valence_test=train_test_split(HRV,arousalLabel,valenceLable,test_size=0.2)
 
     start = time.time()
-    kShapelet=findBestKShapeletWithEarlyPrune(X_train,arousal_train,5,10,25)
+    kShapelet=findBestKShapeletWithSplitPoints(X_train,arousal_train,5,20,25)
     end = time.time()
     print("运行时间",end-start)
     print("finally shapelet------------------------------------")

@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import math
 import time
+from split.splitpoints import getSplitPoints
+
 class Shapelet:
     def __init__(self,seriesId,startPos,length,values):
         self.seriesId = seriesId     # 序列id
@@ -73,60 +75,55 @@ def transform(dataset,shapelets):
 
     return features
 
-
-def findBestKShapeletWithEarlyPrune(dataset,label,minLen,maxLen,k):
-    classDistribution = ClassDistribution()
+def findBestKShapeletWithSplitPoints(dataset,label,minLen,maxLen,k):
+    classDistribution=ClassDistribution()
     classDistribution.setValueFromLabel(label)
-    entropy_all = classDistribution.getEntropy()
-    best_K_shapelet = []
-
-    instanceNo=len(dataset)
-    number_threshold=instanceNo/2
-    gain_threshold = float("-inf")
-    for seriesId in range(instanceNo):
-        print("time", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-        print("selected shapelet number",len(best_K_shapelet))
-        print("gain_threshold",gain_threshold)
+    entropy_all=classDistribution.getEntropy()
+    best_K_shapelet=[]
+    gain_threshold=float("-inf")
+    for seriesId in range(len(dataset)):
+        print("time",time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        print("已选shapelet数量", len(best_K_shapelet))
+        print("信息增益下限",gain_threshold)
         print("percent", seriesId, "/", len(dataset))
-        shapelet_in_series = []
-        timeseries = dataset[seriesId]
-        for length in range(minLen, maxLen + 1):
-            for startPos in range(len(timeseries) - length + 1):
-                values = timeseries[startPos:startPos + length]
-                orderline = []
-                pruned=False
-                for i in range(instanceNo):
-                    if(i == seriesId):
-                        dist = 0.0
-                    else:
-                        dist = getMinDistance(values, dataset[i])
-                    orderLineObj = OrderLineObj(dist, label[i])
-                    orderline.append(orderLineObj)
-                    if len(best_K_shapelet)<k:
-                        pass
-                    else:
-                        if(i>number_threshold) and (i%20==0):
-                            pruned =entropyEarlyPrune(orderline,label[i+1:len(label)],entropy_all,gain_threshold)
-                    if(pruned):
-                        break
-                if(pruned):
+
+        shapelet_in_series=[]
+        timeseries=dataset[seriesId]
+
+        splitPoints=getSplitPoints(timeseries,math.ceil(len(timeseries)/10))
+        for i in range(len(splitPoints)-1):
+            startPos=splitPoints[i]
+            for j in range(i+1,len(splitPoints)):
+                endPos=splitPoints[j]
+                length=endPos-startPos+1
+                '''
+                if(length<minLen):
                     continue
-                orderline = sorted(orderline)
+                if(length>maxLen):
+                    break
+                '''
 
-                threshold, gain, gap = getBestSplit(orderline, entropy_all)
-                shapelet = Shapelet(seriesId, startPos, length, values)
-                shapelet.setQualityValue(gain, gap, threshold)
+                values=timeseries[startPos:endPos+1]
+                shapelet=Shapelet(seriesId,startPos,length,values)
+                dist=getAllDistance(shapelet,dataset)
+                orderline=[]
+                for i in range(len(dist)):
+                    orderLineObj=OrderLineObj(dist[i],label[i])
+                    orderline.append(orderLineObj)
+                orderline=sorted(orderline)
+
+                threshold, gain,gap=getBestSplit(orderline,entropy_all)
+                shapelet.setQualityValue(gain,gap,threshold)
                 shapelet_in_series.append(shapelet)
-        # sort shapelet in series
-        shapelet_in_series = sorted(shapelet_in_series, reverse=True)
+        #sort shapelet in series
+        shapelet_in_series=sorted(shapelet_in_series,reverse=True)
         # remove similar shapelet
-        shapelet_in_series = removeSelfSimilar(shapelet_in_series)
-        # combine the best k shapelet
-        best_K_shapelet = combine(k, best_K_shapelet, shapelet_in_series)
+        shapelet_in_series=removeSelfSimilar(shapelet_in_series)
+        #combine the best k shapelet
+        best_K_shapelet=combine(k,best_K_shapelet,shapelet_in_series)
 
-        if(len(best_K_shapelet)>=k):
+        if(len(best_K_shapelet)==k):
             gain_threshold=best_K_shapelet[k-1].gain
-
 
     return best_K_shapelet
 
@@ -166,45 +163,34 @@ def findBestKShapelet(dataset,label,minLen,maxLen,k):
 
 def combine(k,kBestSoFar,timeSeriesShapelets):
     newBestSoFar = []
-
     # best so far pointer
     bsfPtr = 0;
     # new time seris pointer
     tssPtr = 0
-
     for i in range(k):
         if bsfPtr<len(kBestSoFar):
             shapelet1=kBestSoFar[bsfPtr]
         else:
             shapelet1=None
-
         if tssPtr<len(timeSeriesShapelets):
             shapelet2=timeSeriesShapelets[tssPtr]
         else:
             shapelet2=None
-
         shapelet1Null = (shapelet1 is None)
         shapelet2Null = (shapelet2 is None)
-
         #both lists have been explored, but we have less than K elements.
         if (shapelet1Null and shapelet2Null):
             break
-
-
         #one list is expired keep adding the other list until we reach K.
         if (shapelet1Null):
             newBestSoFar.append(shapelet2)
             tssPtr=tssPtr+1
             continue
-
-
         #one list is expired keep adding the other list until we reach K.
         if (shapelet2Null):
             newBestSoFar.append(shapelet1)
             bsfPtr=bsfPtr+1
             continue
-
-
         #if both lists are fine then we need to compare which one to use.
         if shapelet1> shapelet2 :
             newBestSoFar.append(shapelet1)
@@ -212,8 +198,6 @@ def combine(k,kBestSoFar,timeSeriesShapelets):
         else:
             newBestSoFar.append(shapelet2);
             tssPtr=tssPtr+1
-
-
     return newBestSoFar;
 
 def removeSelfSimilar(shapelet_in_series):
@@ -262,44 +246,7 @@ def getAllDistance(shapelet,dataset):
             dist[i]=0.0
         else:
             dist[i]=getMinDistance(values,dataset[i])
-
     return dist
-
-
-#only can be used for two classes and classes are {1,2}
-def entropyEarlyPrune(orderline,labels,entropy_all,gain_threshold):
-    minend=0
-    maxend=orderline[len(orderline)-1].distance+1
-
-    orderline1=orderline.copy()
-    for i in range(len(labels)):
-        if(labels[i]==1):
-            orderLineObj = OrderLineObj(minend, 1)
-            orderline1.append(orderLineObj)
-        else:
-            orderLineObj = OrderLineObj(maxend, 2)
-            orderline1.append(orderLineObj)
-    orderline1 = sorted(orderline1)
-    threshold, gain, gap = getBestSplit(orderline1, entropy_all)
-
-    if(gain>=gain_threshold):
-        return False
-
-    orderline2=orderline.copy()
-
-    for i in range(len(labels)):
-        if(labels[i]==2):
-            orderLineObj = OrderLineObj(minend, 2)
-            orderline2.append(orderLineObj)
-        else:
-            orderLineObj = OrderLineObj(maxend, 1)
-            orderline2.append(orderLineObj)
-    orderline2 = sorted(orderline2)
-    threshold, gain, gap = getBestSplit(orderline2, entropy_all)
-    if (gain >= gain_threshold):
-        return False
-
-    return True
 
 def getBestSplit(orderline,entropy_all):
     #for each split point, starting between 0 and 1, ending between end-1 and end
@@ -320,7 +267,6 @@ def getBestSplit(orderline,entropy_all):
 
             # visit those belowthreshold
             for j in range(0,i):
-
                 thisClassVal = orderline[j].label
                 storedTotal=1
                 if(thisClassVal in lessClasses.classDictionary):
@@ -329,7 +275,7 @@ def getBestSplit(orderline,entropy_all):
                 sumOfLessClasses=sumOfLessClasses+1
 
             # visit  those above threshold
-            for  j in range(i,len(orderline)):
+            for j in range(i,len(orderline)):
                 thisClassVal = orderline[j].label
                 storedTotal = 1
                 if (thisClassVal in greaterClasses.classDictionary):
