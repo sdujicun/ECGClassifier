@@ -1,0 +1,12 @@
+numpy
+#pandas
+scipy
+#pywavelets
+heartpy
+neurokit2
+#scikit_learn
+#nolds
+
+#wfdb
+#numba
+#sktime
